@@ -1,7 +1,7 @@
-# This script tests and validates the performance of visual classifiers beyond category, 
+# This script tests and validates the performance of visual classifiers beyond category,
 # by selecting right positive instances from the pool of positive and negative instance object images.
 #
-# Positive instances --> images of instances of which the visual classifier token is used at least 6 times to describe. 
+# Positive instances --> images of instances of which the visual classifier token is used at least 6 times to describe.
 # Negative instances -- > the intersection of negative sampling and Doc2Vec negative instances of all positive instances
 #
 
@@ -9,7 +9,7 @@
 # python macro-pos5DescrNegDocVecdistractorTest.py test/NoOfDataPoints/ 'rgb' 'rgb'
 # or
 # python macro-pos5DescrNegDocVecdistractorTest.py test/NoOfDataPoints/ 'shape' 'shape'
-# or 
+# or
 # python macro-pos5DescrNegDocVecdistractorTest.py test/NoOfDataPoints/ 'object' 'object'
 #!/usr/bin/env python
 import numpy as np
@@ -53,8 +53,8 @@ if len(argvs) > 3:
 posName = "posInstances.conf"
 negName = "negInstances.conf"
 
-pos = fld + "/" + tID + "posInstances.conf"
-neg = fld + "/" + tID + "negInstances.conf"
+pos = fld + "/evalHelpFiles/" + tID + "posInstances.conf"
+neg = fld + "/evalHelpFiles/" + tID + "negInstances.conf"
 
 #meaningfulWords = ["wedge", "cylinder", "square", "yellow","carrot", "tomato", "curved", "archshaped","lime", "blue", "eggplant", "purple","cuboid", "prism", "orange", "plantain", "white", "semicylinder", "banana", "red", "cube", "triangle", "semicircle", "cylindrical", "corn", "triangular", "cucumber", "brinjal", "lemon", "cabbage", "arch", "circle",  "plum", "potato", "rectangular", "green", "eggplant",  "rectangle"]
 
@@ -104,7 +104,7 @@ def getPosNegInstances():
 				if instance in objInstances.keys():
 					newInsts.append(instance)
 					posInsts[color] = newInsts
-					
+
 	resDictFile = []
 	with open(neg) as csvfile:
   	  readFile = csv.DictReader(csvfile)
@@ -118,8 +118,8 @@ def getPosNegInstances():
   	  	  	  if instance in objInstances.keys():
   	  	  	  	  newInsts.append(instance)
   	  	  	  	  negInsts[color] = newInsts
-  	  	  	  	  
-  	  	  	  	  
+
+
 def getTestInstancesAndClassifiers(fName):
 #print fName
 	global objInstances,objNames,classifierProbs
@@ -140,7 +140,7 @@ def getTestInstancesAndClassifiers(fName):
 					if ar[1] in objInstances.keys():
 						objInstances[ar[1]].append(inst)
 					else :
-						objInstances[ar[1]] = [inst] 
+						objInstances[ar[1]] = [inst]
 						objNames[ar[1]] = row[inst]
 			else :
                                 if cID == "":
@@ -155,9 +155,9 @@ def getTestInstancesAndClassifiers(fName):
 							classifierProbs[row['Token']].append(row)
 						else:
 							classifierProbs[row['Token']] = [row]
-					
+
 			head = head + 1
-						
+
 def writePosNeg():
  testObjs = objInstances.keys()
  descObjs = util.getDocsForTest(testObjs)
@@ -185,14 +185,15 @@ def writePosNeg():
           else:
              posTokens[k1] = [key]
  posTokens = collections.OrderedDict(sorted(posTokens.items()))
- f = open(fld + "/" + posName, "w")
+ os.system("mkdir -p " + fld + "/evalHelpFiles/")
+ f = open(fld + "/evalHelpFiles/" + posName, "w")
  title = "token,objects\n"
  f.write(title)
  for k,v in posTokens.items():
     ll  = str(k) + ","
     ll += "-".join(v)
     ll += "\n"
-    f.write(ll)    
+    f.write(ll)
  f.close()
  for kTkn in posTokens.keys():
     negSampleTokens[kTkn] = []
@@ -205,11 +206,11 @@ def writePosNeg():
    negTokens[kTkn] = negSampleTokens[kTkn]
    posV = posTokens[kTkn]
    for v in posV:
-      negDocVec = negsD[v]      
+      negDocVec = negsD[v]
       negTokens[kTkn] = list(set(negTokens[kTkn]).intersection(set(negDocVec)))
 
  negTokens = collections.OrderedDict(sorted(negTokens.items()))
- f = open(fld + "/" + negName, "w")
+ f = open(fld + "/evalHelpFiles/" + negName, "w")
  f.write(title)
  for k,v in negTokens.items():
     ll  = str(k) + ","
@@ -217,11 +218,11 @@ def writePosNeg():
     ll += "\n"
     f.write(ll)
  f.close()
- 
+
  kWord = ["rgb","shape","object"]
  for wd in kWord:
-   f = open(fld + "/" + wd + posName, "w")
-   f1 = open(fld + "/" +wd + negName, "w")
+   f = open(fld + "/evalHelpFiles/" + wd + posName, "w")
+   f1 = open(fld + "/evalHelpFiles/" +wd + negName, "w")
    sWords = []
    f.write(title)
    f1.write(title)
@@ -247,7 +248,7 @@ def writePosNeg():
    f.close()
    f1.close()
  return 0
-						
+
 def getTestImages(testPosInsts,testNegInsts,posNo,negNo):
 	posId = []
 	negId = []
@@ -255,24 +256,24 @@ def getTestImages(testPosInsts,testNegInsts,posNo,negNo):
 	relevantInst = []
 	if (len(testPosInsts) > 0) or (len(testNegInsts) > 0):
                 if len(testPosInsts) > 0:
-		   posId = [(i + 1) %  len(testPosInsts) for i in range(posNo)] 
+		   posId = [(i + 1) %  len(testPosInsts) for i in range(posNo)]
                 if len(testNegInsts) > 0:
 		   negId = [(inn + 1) % len(testNegInsts) for inn in range(negNo)]
-		
+
 		for id in posId:
 			tmp = testPosInsts[id]
 			imgs = objInstances[tmp]
 			p1 = random.sample(range(len(imgs)), k=1)
 			testInstances[imgs[p1[0]]] = tmp + " (" + objNames[tmp] + ")"
 			relevantInst.append(imgs[p1[0]])
-      	  
+
 		for id in negId:
 			tmp = testNegInsts[id]
 			imgs = objInstances[tmp]
 			p1 = random.sample(range(len(imgs)), k=1)
 			testInstances[imgs[p1[0]]] = tmp + " (" + objNames[tmp] + ")"
 	return (relevantInst,testInstances)
-      	  
+
 def selectCorrectImage(c,testInstances):
 	probs = classifierProbs[c]
 	argMax = argProb
@@ -284,12 +285,12 @@ def selectCorrectImage(c,testInstances):
 				#  argMax = float(probs[inst])
 				selInst.append(inst)
 	return list(set(selInst))
-			
+
 def getMatchNumbers(relevantInst,selInst,testInstances):
 	tNo = float(len(testInstances))
 	tP = 0.0
 	fN = 0.0
-	fP = 0.0   
+	fP = 0.0
         tps = []
         if len(relevantInst) > 0:
  	   tps = list(set(relevantInst).intersection(set(selInst)))
@@ -298,12 +299,12 @@ def getMatchNumbers(relevantInst,selInst,testInstances):
 	fN = float(len(relevantInst) - tP)
 	tN = tNo - tP - fN - fP
 	return (tP,fN,fP,tN)
-	
+
 def getStats(tP,fN,fP,tN):
 	acc = (tP + tN)/(tP + fN + fP + tN)
 	if (tP + fP) > 0.0:
 		prec = tP / (tP + fP)
-	else: 
+	else:
 		prec = 0.0
 	if (tP + fN) > 0.0:
 		rec = tP / (tP + fN)
@@ -313,9 +314,9 @@ def getStats(tP,fN,fP,tN):
 	if (prec + rec) != 0.0:
 		f1s = 2.0 * prec * rec / (prec + rec)
 	return (acc,prec,rec,f1s)
-		
-		
-rootDir = fld		
+
+
+rootDir = fld
 resultFolder = fld
 
 resFileName = resultFolder + tID + "_" + str(cID) + "_overall-learnPerformance.csv"
@@ -347,10 +348,10 @@ for fNo in fFldrs:
     fld = resultFolder
     fName = fName1 + "/groundTruthPrediction.csv"
     predfName = fName
-    pos = fName1 + "/" + tID + "posInstances.conf"
-    neg = fName1 + "/" + tID + "negInstances.conf"
-    resultFileName = resultFolder + str(fNo) + "-" + str(tID) + "_" + str(cID) + "_learnPerformance.csv" 
-    perfFile = open(resultFileName,'w') 
+    pos = fName1 + "/evalHelpFiles/" + tID + "posInstances.conf"
+    neg = fName1 + "/evalHelpFiles/" + tID + "negInstances.conf"
+    resultFileName = resultFolder + "/" + str(fNo) + "-" + str(tID) + "_" + str(cID) + "_learnPerformance.csv"
+    perfFile = open(resultFileName,'w')
     fieldnames = np.array(['Classifier','Test Object Images','Ground Truth','Selected by Classifier'])
     fieldnames = np.append(fieldnames,['True Positive','True Negative','False Positive','False Negative'])
     fieldnames = np.append(fieldnames,['Accuracy','Precision','Recall','F1-Score'])
@@ -392,39 +393,41 @@ for fNo in fFldrs:
           f1T = 0.0
           precT = 0.0
           recT = 0.0
-          if len(posInsts[c]) > 0:
-  	     testPosInsts = list(set(posInsts[c]).intersection(set(objInstances.keys())))
-          if len(negInsts[c]) > 0:
+	  if c in posInsts.keys():
+           if len(posInsts[c]) > 0:
+  	        testPosInsts = list(set(posInsts[c]).intersection(set(objInstances.keys())))
+          if c in negInsts.keys():
+           if len(negInsts[c]) > 0:
               testNegInsts = list(set(negInsts[c]).intersection(set(objInstances.keys())))
           if len(testPosInsts) > 0 or len(testNegInsts) > 0:
                   accTkn = []
                   f1sTkn = []
                   precTkn = []
                   recTkn = []
-  	  	  for tms in range(10):       
-  	  	  	  posNo = random.sample(range(3), k=1)  
+  	  	  for tms in range(10):
+  	  	  	  posNo = random.sample(range(3), k=1)
                           totNo = random.sample([4,5,6], k=1)
   	  	  	  negNo = totNo[0] - posNo[0] - 1
-  	  
+
   	  	  	  (relevantInst,testInstances) = getTestImages(testPosInsts,testNegInsts,posNo[0] + 1, negNo)
   	  	  	  selInst = selectCorrectImage(c,testInstances)
-  	  	  	
+
   	  	  	  (tP,fN,fP,tN) = getMatchNumbers(relevantInst,selInst,testInstances)
   	  	  	  (acc,prec,rec,f1s) = getStats(tP,fN,fP,tN)
   	  	  	  tmpObj = ""
   	  	  	  for v in testInstances.values():
   	  	  	  	  tmpObj += str(v) + "      "
-  	  	  	  relInsts = ""	  	  	
-  	  	  	  for ik in relevantInst:	
+  	  	  	  relInsts = ""
+  	  	  	  for ik in relevantInst:
   	  	  	  	  relInsts += str(testInstances[ik]) + " "
   	  	  	  selInsts = ""
-  	  	 
+
   	  	  	  for ik in selInst:
   	  	  	  	  selInsts += str(testInstances[ik]) + " "
   	  	  	  dictRes = {'Classifier' : str(c),'Test Object Images' : tmpObj, 'Ground Truth' : str(relInsts)}
   	  	  	  dictRes.update({'Selected by Classifier' : str(selInsts), 'Accuracy' : str(acc),'Precision' : str(prec) ,'Recall' : str(rec),'F1-Score' : str(f1s)})
 			  dictRes.update({'True Positive' : str(tP),'True Negative' : str(tN) ,'False Positive' : str(fP),'False Negative' : str(fN)})
-			 
+
 	 		  writer.writerow(dictRes)
                           accTkn.append(acc)
                           f1sTkn.append(f1s)
@@ -485,6 +488,3 @@ print "Precision: ",
 print ", ".join(precArs)
 print "Recall: ",
 print ", ".join(recArs)
-
-
-
