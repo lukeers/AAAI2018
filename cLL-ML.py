@@ -4,6 +4,7 @@ from sklearn import preprocessing
 from scipy.spatial.distance import pdist, squareform
 from pandas import DataFrame, read_table
 import pandas as pd
+import collections
 import random
 from collections import Counter
 import json
@@ -21,13 +22,18 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
 import sklearn
 import argparse
+from gensim.models.doc2vec import LabeledSentence
+from gensim.models import Doc2Vec
+from scipy import spatial
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--resDir',help='path to result directory',required=True)
 parser.add_argument('--cat', help='type for learning', choices=['all','rgb','shape','object'],required=True)
+parser.add_argument('--pre', help='the file with the preprocessed data', required=True)
 args = parser.parse_args()
 
 resultDir = args.resDir
+preFile = args.pre
 kinds = np.array([args.cat])
 if args.cat == 'all':
 	kinds = np.array(['rgb','shape','object'])
@@ -61,6 +67,113 @@ def fileAppend(fName, sentence):
   with open(fName, "a") as myfile:
     myfile.write(sentence)
     myfile.write("\n")
+
+######## Negative Example Generation##########
+class LabeledLineSentence(object):
+    def __init__(self,docLists,docLabels):
+        self.docLists = docLists
+        self.docLabels = docLabels
+
+    def __iter__(self):
+        for index, arDoc in enumerate(self.docLists):
+            yield LabeledSentence(arDoc, [self.docLabels[index]])
+
+    def to_array(self):
+        self.sentences = []
+        for index, arDoc in enumerate(self.docLists):
+            self.sentences.append(LabeledSentence(arDoc, [self.docLabels[index]]))
+        return self.sentences
+    
+    def sentences_perm(self):
+        from random import shuffle
+        shuffle(self.sentences)
+        return self.sentences
+
+class NegSampleSelection:
+   """ Class to bundle negative example generation functions and variables. """
+   __slots__ = ['docs']
+   docs = {}
+   def __init__(self,docs):
+      """""""""""""""""""""""""""""""""""""""""
+                Initialization function for NegSampleSelection class
+                Args: Documents dictionary where key is object instance and value 
+                      is object annotation
+                Returns: Nothing
+      """""""""""""""""""""""""""""""""""""""""
+      docs = collections.OrderedDict(sorted(docs.items()))
+      self.docs = docs
+
+   def sentenceToWordLists(self):
+      docLists = []
+      docs = self.docs
+      for key in docs.keys():
+         sent = docs[key]
+         wLists = sent.split(" ")
+         docLists.append(wLists)
+      return docLists
+
+   def sentenceToWordDicts(self):
+      docs = self.docs
+      docDicts = {}
+      for key in docs.keys():
+         sent = docs[key]
+         wLists = sent.split(" ")
+         docDicts[key] = wLists
+      return docDicts
+   
+   def square_rooted(self,x):
+      return round(math.sqrt(sum([a*a for a in x])),3)
+ 
+   def cosine_similarity(self,x,y):
+      numerator = sum(a*b for a,b in zip(x,y))
+      denominator = self.square_rooted(x)*self.square_rooted(y)
+      return round(numerator/float(denominator),3)
+
+   def generateNegatives(self):
+      docs = self.docs
+      docNames = docs.keys()
+      docLists = self.sentenceToWordLists()
+      docDicts = self.sentenceToWordDicts()
+      docLabels = []
+      for key in docNames:
+        ar = key.split("/")
+        docLabels.append(ar[1])
+      sentences = LabeledLineSentence(docLists,docLabels)
+      model = Doc2Vec(min_count=1, window=10, size=2000, sample=1e-4, negative=5, workers=8)
+
+      model.build_vocab(sentences.to_array())
+      token_count = sum([len(sentence) for sentence in sentences])
+      for epoch in range(10):
+          model.train(sentences.sentences_perm(),total_examples = token_count,epochs=model.iter)
+          model.alpha -= 0.002 # decrease the learning rate
+          model.min_alpha = model.alpha # fix the learning rate, no deca
+          model.train(sentences.sentences_perm(),total_examples = token_count,epochs=model.iter)
+
+      degreeMap = {}
+      for i , item1 in enumerate(docLabels):
+         fDoc = model.docvecs[docLabels[i]]
+         cInstMap = {}
+         cInstance = docNames[i]
+         for j,item2 in enumerate(docLabels):
+            tDoc = model.docvecs[docLabels[j]]
+            cosineVal = self.cosine_similarity(fDoc,tDoc)
+            cValue = math.degrees(math.acos(cosineVal))
+            tInstance = docNames[j]
+            cInstMap[tInstance] = cValue
+         degreeMap[cInstance] = cInstMap
+      negInstances = {}     
+      for k in np.sort(degreeMap.keys()):
+        v = degreeMap[k]
+        ss = sorted(v.items(), key=lambda x: x[1])
+        sentAngles = ""
+        for item in ss:
+          if item[0] != k:
+             sentAngles += item[0]+"-"+str(item[1])+","
+        sentAngles = sentAngles[:-1]
+        negInstances[k] = sentAngles
+      return negInstances
+
+############Negative Example Generation --- END ########
 
 class Category:
    """ Class to bundle our dataset functions and variables category wise. """
@@ -309,34 +422,16 @@ class DataSet:
    """ Class to bundle data set related functions and variables """	  
    __slots__ = ['dsPath', 'annotationFile']
    
-   def __init__(self, path,anFile,negFile):
+   def __init__(self, path,anFile):
       """""""""""""""""""""""""""""""""""""""""
 		Initialization function for Dataset class
          Args: 
          	path - physical location of image dataset
          	anFile - 6k amazon mechanical turk description file
-         	negFile - negative description file estimated using Paragraph vector and cosine angle
          Returns: Nothing
       """""""""""""""""""""""""""""""""""""""""   	   
       self.dsPath = path
       self.annotationFile = anFile
-      self.negDatasetCollection = negFile
-
-   def addNegativeToInstances(self):
-      """""""""""""""""""""""""""""""""""""""""
-        Function to fetch negative description file and 
-        return the file contents which has instances and cosine angles
-         	Args:  dataset instance
-         	Returns: A Map with instance name as key and 
-         		a string with cosine angles as value
-      """""""""""""""""""""""""""""""""""""""""    	   
-      nDf = read_table(self.negDatasetCollection,sep=':',  header=None)
-      nDs = nDf.values
-      negativeExamples = {}
-      for (k1,v1) in nDs:
-          instName = k1.strip()
-          negativeExamples[instName] = v1
-      return negativeExamples
 
    def findCategoryInstances(self):
       """""""""""""""""""""""""""""""""""""""""
@@ -393,7 +488,6 @@ class DataSet:
              	file name for logging
              Returns:  array of Token class instances
       """""""""""""""""""""""""""""""""""""""""     	   
-      negExamples = self.addNegativeToInstances()
       instances = nDf.to_dict()
       """ read the amazon mechanical turk description file line by line, 
       separating by comma [ line example, 'arch/arch_1, yellow arch' """
@@ -401,8 +495,15 @@ class DataSet:
       tokenDf = {}
       cDz = df.values
       """ column[0] would be arch/arch_1 and column[1] would be 'yellow arch' """ 
+      docs = {}
       for column in df.values:
         ds = column[0]
+        if ds in docs.keys():
+           sent = docs[ds]
+           sent += " " + column[1]
+           docs[ds] = sent
+        else:
+           docs[ds] = column[1]
         dsTokens = column[1].split(" ")
         dsTokens = list(filter(None, dsTokens)) 
         """ add 'yellow' and 'arch' as the tokens of 'arch/arch_1' """
@@ -418,6 +519,8 @@ class DataSet:
       tks = pd.DataFrame(tokenDf,index=[0])
       sent = "Tokens :: "+ " ".join(tokenDf.keys())
       fileAppend(fName,sent)
+      negSelection = NegSampleSelection(docs)
+      negExamples = negSelection.generateNegatives()
       """ find negative instances for all tokens.
       Instances which has cosine angle greater than 80 in vector space consider as negative sample"""
       for tk in tokenDf.keys():
@@ -561,13 +664,11 @@ def execution(resultDir,ds,cDf,nDf,tests):
 if __name__== "__main__":
   print "START :: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
   anFile =  execPath + "groundtruth_annotation.conf"
-  anFile =  execPath + "6k_lemmatized_72instances_mechanicalturk_description.conf"
-  negFile = execPath + "NegInstancesWithDegrees.txt"
+  anFile =  execPath + preFile
   fResName = ""
   os.system("mkdir -p " + resultDir)
-  """ creating a Dataset class Instance with dataset path, amazon mechanical turk description file,
-  negative instance file """
-  ds = DataSet(dsPath,anFile,negFile)
+  """ creating a Dataset class Instance with dataset path, amazon mechanical turk description file"""
+  ds = DataSet(dsPath,anFile)
   """ find all categories and instances in the dataset """
   (cDf,nDf) = ds.findCategoryInstances()
   """ find all test instances. We are doing 4- fold cross validation """
