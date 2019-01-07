@@ -24,6 +24,7 @@ objURLS = "objectURLS.conf"
 N = 10
 tokenize = lambda doc: doc.lower().split(" ")
 
+# get the images by URL
 def objectURLs() :
   objLinks = {}
   with open(objURLS,'r') as f:
@@ -136,7 +137,7 @@ def findTopNtfidfterms(docLists,tfidfLists,N):
       dTFIDFMap = {}
       for j in range(len(dList)):
           dTFIDFMap[dList[j]] = tList[j]
-      
+
       stC = sorted(dTFIDFMap.items(), key=lambda x: x[1])
       lastpairs = stC[len(stC) - N  :]
       vals = []
@@ -159,7 +160,7 @@ class LabeledLineSentence(object):
         for index, arDoc in enumerate(self.docLists):
             self.sentences.append(LabeledSentence(arDoc, [self.docLabels[index]]))
         return self.sentences
-   
+
     def sentences_perm(self):
         shuffle(self.sentences)
         return self.sentences
